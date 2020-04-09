@@ -9,7 +9,7 @@ data "digitalocean_ssh_key" "pentest" {
 }
 
 data "digitalocean_project" "proxycannon_project" {
-  name = "proxycannon-ng"
+  name = var.do_project
 }
 
 resource "digitalocean_droplet" "vpn_server" {
