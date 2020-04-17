@@ -14,12 +14,12 @@ data "digitalocean_project" "proxycannon_project" {
 
 resource "digitalocean_droplet" "vpn_server" {
   image              = "ubuntu-18-04-x64"
-  name               = "proxycannon-server"
+  name               = "control-server"
   region             = var.do_region
   size               = var.do_droplet_size
   ssh_keys           = data.digitalocean_ssh_key.pentest.*.fingerprint
   private_networking = true
-  tags               = ["proxycannon-server"]
+  tags               = ["proxycannon","vpn-server"]
 
   connection {
       host     = self.ipv4_address
@@ -31,19 +31,19 @@ resource "digitalocean_droplet" "vpn_server" {
   # upload the config files
   provisioner "file" {
     source      = "${path.module}/configs/control_server"
-    destination = "/tmp/"
+    destination = "/root/"
   }
 
   # upload the config files
   provisioner "file" {
     source      = "${path.module}/scripts/control_server"
-    destination = "/tmp/"
+    destination = "/root/"
   }
 
 
   # execute our provisioning scripts
   provisioner "remote-exec" {
-    inline = ["cd /tmp/control_server", "sh install.sh"]
+    inline = ["cd /root/control_server", "sh install.sh"]
   } 
 
   # download keys for vpn server using an INSECURE scp command
@@ -64,39 +64,50 @@ resource "digitalocean_droplet" "vpn_server" {
 
 }
 
-# resource "digitalocean_droplet" "exit_node" {
-#   image              = "ubuntu-18-04-x64"
-#   name               = "exit-node-${count.index + 1}"
-#   region             = var.do_region
-#   size               = var.do_droplet_size
-#   ssh_keys           = data.digitalocean_ssh_key.pentest.*.fingerprint
-#   count              = var.node_count
-#   private_networking = true
-#   tags               = ["exit-node"]
+resource "digitalocean_droplet" "exit_node" {
+  image              = "ubuntu-18-04-x64"
+  name               = "exit-node-${count.index + 1}"
+  region             = var.do_region
+  size               = var.do_droplet_size
+  ssh_keys           = data.digitalocean_ssh_key.pentest.*.fingerprint
+  count              = var.node_count
+  private_networking = true
+  tags               = ["proxycannon","exit-node"]
 
-#   connection {
-#       host     = self.ipv4_address
-#       type     = "ssh"
-#       user     = "root"
-#       private_key = file("${var.private_key}")
-#   }
+  connection {
+      host     = self.ipv4_address
+      type     = "ssh"
+      user     = "root"
+      private_key = file("${var.private_key}")
+  }
 
 
-#   # upload our provisioning scripts
-#   provisioner "file" {
-#     source      = "${path.module}/configs/exit_node"
-#     destination = "/tmp/"
-#   }
+  # upload our provisioning scripts
+  provisioner "file" {
+    source      = "${path.module}/configs/exit_node"
+    destination = "/tmp/"
+  }
 
-#   # execute our provisioning scripts
-#   provisioner "remote-exec" {
-#     script = "${path.module}/configs/exit_node/node_setup.bash"
-#   }
+  # execute our provisioning scripts
+  provisioner "remote-exec" {
+    script = "${path.module}/configs/exit_node/node_setup.bash"
+  }
 
-# }
+  # add the entry to the control servers routing table
+  provisioner "remote-exec" {
+    inline = [ "bash /root/control_server/add_route.bash ${self.ipv4_address_private}" ]
+
+    connection {
+      host     = digitalocean_droplet.vpn_server.ipv4_address
+      type     = "ssh"
+      user     = "root"
+      private_key = file("${var.private_key}")
+    }
+  }
+
+}
 
 resource "digitalocean_project_resources" "proxycannon_resources" {
   project   = data.digitalocean_project.proxycannon_project.id
-  # resources = concat(digitalocean_droplet.exit_node.*.urn, [digitalocean_droplet.vpn_server.urn])
-  resources = [digitalocean_droplet.vpn_server.urn]
+  resources = concat(digitalocean_droplet.exit_node.*.urn, [digitalocean_droplet.vpn_server.urn])
 }

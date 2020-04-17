@@ -14,8 +14,8 @@ apt-get install -y  --quiet openvpn easy-rsa
 # setup openvpn
 ################
 # cp configs
-cp configs/node-server.conf /etc/openvpn/node-server.conf
-cp configs/client-server.conf /etc/openvpn/client-server.conf
+cp /root/control_server/node-server.conf /etc/openvpn/node-server.conf
+cp /root/control_server/client-server.conf /etc/openvpn/client-server.conf
 
 # setup ca and certs
 mkdir /etc/openvpn/ccd
@@ -54,8 +54,8 @@ echo "50        loadb" >> /etc/iproute2/rt_tables
 # set rule for openvpn client source network to use the second routing table
 ip rule add from 10.10.10.0/24 table loadb
 
-# always snat from eth0
-iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+# always snat from eth1 (not eth0 - DO uses eth for private networks)
+iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE
 
 ############################
 # post install instructions
